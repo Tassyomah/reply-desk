@@ -8,6 +8,8 @@ Built by [Tassy Omah](https://www.instagram.com/tassy.omah/) with Claude.
 
 ![Reply Desk](docs/screenshot.png)
 
+**Just want the prompt?** Open [tassyomah.github.io/reply-desk/prompt.html](https://tassyomah.github.io/reply-desk/prompt.html), tap Copy prompt, and paste it into Claude or Codex. No GitHub account needed.
+
 ## What's in here
 
 | Path | What it is |
