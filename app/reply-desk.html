@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Reply Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Schibsted+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single working column. Top: platform tally strip. Then tabs (Inbox / Log / Rules). Inbox = cards, one per comment, with the draft reply editable in place and Approve / Skip on the right. */
+:root{
+  --paper:#f7f6fb; --card:#ffffff; --ink:#17152b; --muted:#66637d; --line:#e3e0ef;
+  --coral:#f0785a; --coral-ink:#8f2f17; --indigo:#4a3fb5; --indigo-soft:#ecebfb;
+  --ok:#1f7a55; --ok-soft:#e3f4ec; --warn:#9a5b00; --warn-soft:#fbf0dc;
+  --display:"Bricolage Grotesque",Arial Black,system-ui,sans-serif;
+  --body:"Schibsted Grotesk",Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+/* Theme lives as a class on <body> (theme-light default, theme-dark, theme-auto), because the viewer rewrites data-theme on <html>. */
+@media (prefers-color-scheme: dark){body.theme-auto{
+  --paper:#111020; --card:#1b1a2e; --ink:#efedfa; --muted:#a29fbb; --line:#2e2c47;
+  --coral:#ff8d70; --coral-ink:#ffc2b2; --indigo:#a59cff; --indigo-soft:#272457;
+  --ok:#5fd3a0; --ok-soft:#173a2c; --warn:#f2bd62; --warn-soft:#3a2c12; color-scheme:dark}}
+body.theme-light{color-scheme:light}
+body.theme-dark{
+  --paper:#111020; --card:#1b1a2e; --ink:#efedfa; --muted:#a29fbb; --line:#2e2c47;
+  --coral:#ff8d70; --coral-ink:#ffc2b2; --indigo:#a59cff; --indigo-soft:#272457;
+  --ok:#5fd3a0; --ok-soft:#173a2c; --warn:#f2bd62; --warn-soft:#3a2c12; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:880px;margin:0 auto;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(30px,5vw,44px);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--coral)}
+.sub{color:var(--muted);margin:6px 0 0;max-width:56ch}
+.sync{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.headright{display:grid;gap:8px;justify-items:end}
+.theme{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--card);padding:3px;gap:2px}
+.theme button{font:600 13px var(--body);border:0;background:transparent;color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}
+.theme button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px}
+.tile b{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
+.tile small{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}
+.tabs button,.chip{font:600 14px var(--body);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:13px;padding:5px 11px}
+.chip[aria-pressed="true"]{background:var(--indigo-soft);border-color:var(--indigo);color:var(--indigo)}
+.list{display:grid;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px}
+.card.approved{border-color:var(--indigo)}
+.card.posted{opacity:.75}
+.meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--muted)}
+.plat{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:6px;background:var(--indigo-soft);color:var(--indigo)}
+.who{font-weight:600;color:var(--ink)}
+.post{font-style:italic}
+.comment{margin:6px 0 0;font-size:16px;min-width:0;overflow-wrap:anywhere}
+.flag{font:500 11px var(--mono);padding:2px 7px;border-radius:6px;background:var(--warn-soft);color:var(--warn)}
+label.lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:10px}
+textarea{width:100%;min-height:58px;resize:vertical;font:15px/1.45 var(--body);color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+textarea:focus-visible,button:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+.actions{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:118px}
+.btn{font:600 14px var(--body);border-radius:10px;padding:8px 12px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.btn.go{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.btn.go[aria-pressed="true"]{background:var(--ok);border-color:var(--ok)}
+.state{font:500 12px var(--mono);text-align:center;padding:4px 6px;border-radius:8px}
+.s-new{background:var(--warn-soft);color:var(--warn)}
+.s-approved{background:var(--indigo-soft);color:var(--indigo)}
+.s-posted{background:var(--ok-soft);color:var(--ok)}
+.s-failed{background:var(--warn-soft);color:var(--coral-ink)}
+.s-skipped{background:var(--paper);color:var(--muted)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:22px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+.tablewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+td.t{font-family:var(--mono);font-size:12px;white-space:nowrap;color:var(--muted)}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
+.rule input{width:20px;height:20px;accent-color:var(--indigo);margin-top:2px}
+.rule h3{margin:0;font-size:16px}
+.rule p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.note{font-size:13px;color:var(--muted)}
+@media (max-width:560px){.card{grid-template-columns:1fr}.actions{flex-direction:row;flex-wrap:wrap}.actions>*{flex:1}}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s,opacity .2s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Reply <span>Desk</span></h1>
+      <p class="sub">Claude sweeps your comments and drafts a reply for each. Edit the draft, then approve or skip it. Only approved replies get posted, and every post is logged.</p>
+    </div>
+    <div class="headright">
+      <div class="theme" role="group" aria-label="Theme">
+        <button id="th-light" data-th="light" aria-pressed="true">Light</button>
+        <button id="th-dark" data-th="dark" aria-pressed="false">Dark</button>
+        <button id="th-auto" data-th="auto" aria-pressed="false">Auto</button>
+      </div>
+      <div class="sync" id="sync">Connecting…</div>
+    </div>
+  </header>
+
+  <div class="note" id="localbar" hidden style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <span>Local mode: data is saved in this browser.</span>
+    <button class="btn" type="button" id="exp">Export JSON</button>
+    <label class="btn" for="imp" style="cursor:pointer">Import JSON</label><input id="imp" type="file" accept="application/json" hidden>
+    <button class="btn" type="button" id="sample">Load sample data</button>
+    <span id="localmsg"></span>
+  </div>
+  <section class="tally" id="tally" aria-label="Counts"></section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-inbox" aria-selected="true" data-tab="inbox">Inbox</button>
+    <button role="tab" id="tab-log" aria-selected="false" data-tab="log">Log</button>
+    <button role="tab" id="tab-rules" aria-selected="false" data-tab="rules">Automation rules</button>
+  </nav>
+
+  <section id="inbox">
+    <div class="filters" id="filters" style="margin-bottom:12px"></div>
+    <div class="list" id="list"><div class="empty">Waiting for the store. New comments from YouTube, TikTok, Instagram, X and LinkedIn appear here after each sweep.</div></div>
+  </section>
+
+  <section id="log" hidden>
+    <div class="tablewrap"><table><thead><tr><th>When</th><th>Platform</th><th>Account</th><th>To</th><th>Reply posted</th><th>Checked</th></tr></thead><tbody id="logbody"><tr><td colspan="6" class="note">Nothing posted yet.</td></tr></tbody></table></div>
+  </section>
+
+  <section id="rules" hidden>
+    <p class="note" style="margin:0 0 10px">Tick a rule only when you're happy for Claude to handle that kind of reply without asking. Unticked rules always wait for your approval.</p>
+    <div class="list" id="rulelist"></div>
+  </section>
+</div>
+
+<script>
+const PLAT={youtube:"YouTube",tiktok:"TikTok",instagram:"Instagram",x:"X",linkedin:"LinkedIn",facebook:"Facebook"};
+const STATE_LABEL={new:"Needs you",approved:"Approved",posted:"Posted",skipped:"Skipped",failed:"Failed"};
+const KIND={comment:"Comment",reply:"Reply",mention:"Mention",dm:"DM"};
+let items=[],rules=[],db=null,filterPlat="all",filterState="open",canWrite=true;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=iso=>{try{return new Date(iso).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}catch(e){return iso||""}};
+
+let prefsRef=null;
+function applyTheme(t){
+  if(!["light","dark","auto"].includes(t))t="light";
+  document.body.classList.remove("theme-light","theme-dark","theme-auto");
+  document.body.classList.add("theme-"+t);
+  document.querySelectorAll("[data-th]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.th===t));
+}
+let savedTheme="light";try{savedTheme=localStorage.getItem("rd-theme")||"light"}catch(e){}
+applyTheme(savedTheme);
+document.querySelectorAll("[data-th]").forEach(b=>b.addEventListener("click",()=>{
+  applyTheme(b.dataset.th);
+  try{localStorage.setItem("rd-theme",b.dataset.th)}catch(e){}
+  prefsRef&&prefsRef.set({theme:b.dataset.th}).catch(()=>{});
+}));
+document.querySelectorAll('[role=tab]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[role=tab]').forEach(x=>x.setAttribute('aria-selected',x===b));
+  ["inbox","log","rules"].forEach(id=>$("#"+id).hidden=id!==b.dataset.tab);
+  try{localStorage.setItem('rd-tab',b.dataset.tab)}catch(e){}
+}));
+try{const t=localStorage.getItem('rd-tab');if(t)document.querySelector(`[data-tab="${t}"]`)?.click()}catch(e){}
+
+function tally(){
+  const open=items.filter(i=>i.state==="new").length, appr=items.filter(i=>i.state==="approved").length,
+        posted=items.filter(i=>i.state==="posted").length;
+  const by=Object.keys(PLAT).map(p=>[p,items.filter(i=>i.platform===p&&i.state==="new").length]).filter(x=>x[1]);
+  $("#tally").innerHTML=`<div class="tile"><small>Needs you</small><b>${open}</b></div>
+    <div class="tile"><small>Approved, to post</small><b>${appr}</b></div>
+    <div class="tile"><small>Posted</small><b>${posted}</b></div>`+
+    by.map(([p,n])=>`<div class="tile"><small>${PLAT[p]}</small><b>${n}</b></div>`).join("");
+}
+function filters(){
+  const plats=["all",...Object.keys(PLAT).filter(p=>items.some(i=>i.platform===p))];
+  const states=[["open","Open"],["approved","Approved"],["posted","Posted"],["skipped","Skipped"],["failed","Failed"],["every","All"]];
+  const inState=(i,k)=>k==="every"||(k==="open"?["new","approved"].includes(i.state):i.state===k);
+  const nP=p=>items.filter(i=>(p==="all"||i.platform===p)&&inState(i,filterState)).length;
+  const nS=k=>items.filter(i=>(filterPlat==="all"||i.platform===filterPlat)&&inState(i,k)).length;
+  $("#filters").innerHTML=plats.map(p=>`<button class="chip" type="button" aria-pressed="${filterPlat===p}" data-p="${p}">${p==="all"?"All platforms":PLAT[p]} · ${nP(p)}</button>`).join("")+
+    `<span style="width:8px"></span>`+states.map(([k,l])=>`<button class="chip" type="button" aria-pressed="${filterState===k}" data-s="${k}">${l} · ${nS(k)}</button>`).join("");
+  $("#filters").querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{filterPlat=b.dataset.p;render()});
+  $("#filters").querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{filterState=b.dataset.s;render()});
+}
+function card(i){
+  const done=i.state==="posted";
+  return `<article class="card ${i.state}" data-id="${esc(i.id)}">
+    <div style="min-width:0">
+      <div class="meta"><span class="plat">${PLAT[i.platform]||esc(i.platform)}</span>${i.isMain===false?`<span class="plat">${esc(i.account)}</span>`:""}
+        ${i.kind&&i.kind!=="comment"?`<span class="plat">${KIND[i.kind]||esc(i.kind)}</span>`:""}<span class="who">${esc(i.author)}</span><span>${esc(i.when||"")}</span>${i.needsAnswer?`<span class="flag">Needs a real answer</span>`:""}${i.threadHasOwnerReply?`<span class="flag">Already answered</span>`:""}</div>
+      <div class="meta post">on ${/^https?:\/\//.test(i.postUrl||"")?`<a href="${esc(i.postUrl)}" target="_blank" rel="noopener">“${esc(i.post||"post")}”</a>`:`“${esc(i.post||"")}”`}</div>
+      <p class="comment">${esc(i.text)}</p>
+      ${i.translation?`<p class="note" style="margin:4px 0 0">Translation: ${esc(i.translation)}</p>`:""}
+      <label class="lbl" for="r-${esc(i.id)}">${done?"Posted reply":"Reply"}</label>
+      <textarea id="r-${esc(i.id)}" ${done||!canWrite?"readonly":""} data-edit placeholder="${i.needsAnswer?"Type your answer here. It gets posted word for word.":"Type a reply"}">${esc(i.reply||"")}</textarea>
+      <p class="note err" hidden style="margin:6px 0 0;color:var(--coral-ink)">Write a reply before approving.</p>
+      ${i.note?`<p class="note" style="margin:6px 0 0">${esc(i.note)}</p>`:""}
+      ${i.state==="failed"&&i.failReason?`<p class="note" style="margin:6px 0 0;color:var(--coral-ink)">Not posted: ${esc(i.failReason)}</p>`:""}
+    </div>
+    <div class="actions">
+      <span class="state s-${i.state}">${STATE_LABEL[i.state]||i.state}</span>
+      ${done?`<span class="note">${fmt(i.postedAt)}</span>`:`
+      <button class="btn go" data-act="approve" aria-pressed="${i.state==="approved"}" ${canWrite?"":"disabled"}>${i.state==="approved"?"Approved ✓":"Approve"}</button>
+      <button class="btn" data-act="skip" ${canWrite?"":"disabled"}>${i.state==="skipped"?"Undo skip":"Skip"}</button>`}
+    </div></article>`;
+}
+let loadState="loading", loadedAt=null, pendingList=false;
+function emptyMsg(){
+  if(loadState==="loading")return `<div class="empty">Loading your comments…</div>`;
+  if(loadState==="error")return `<div class="empty">Couldn't load your comments. <button class="btn" id="retry" type="button">Reload</button></div>`;
+  if(loadState==="nodb")return `<div class="empty">This page needs you signed in to Claude to load your comments. Open it from claude.ai while signed in.</div>`;
+  if(!items.length)return `<div class="empty">No comments yet. They appear here after Claude's next sweep.</div>`;
+  const n=items.filter(i=>filterPlat==="all"||i.platform===filterPlat).length;
+  return `<div class="empty">No ${filterState==="open"?"open":(filterState==="every"?"":filterState)} comments ${filterPlat==="all"?"":"on "+PLAT[filterPlat]+" "}right now. ${n?`There ${n===1?"is":"are"} ${n} in other states. Pick “All” to see them.`:""}</div>`;
+}
+function editing(){const a=document.activeElement;return a&&a.matches&&a.matches("#list textarea")}
+function render(){
+  tally();filters();
+  const posted=items.filter(i=>i.state==="posted").sort((a,b)=>String(b.postedAt).localeCompare(String(a.postedAt)));
+  $("#logbody").innerHTML=posted.length?posted.map(i=>`<tr><td class="t">${fmt(i.postedAt)}</td><td>${PLAT[i.platform]||esc(i.platform)}</td><td>${esc(i.account||"")}</td><td>${esc(i.author)}</td><td>${esc(i.reply)}</td><td>${i.verified?"✓ read back":"–"}</td></tr>`).join(""):`<tr><td colspan="6" class="note">Nothing posted yet.</td></tr>`;
+  $("#rulelist").innerHTML=rules.length?rules.sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>`<label class="rule"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on?"checked":""} ${canWrite?"":"disabled"}><span><h3>${esc(r.title)}</h3><p>${esc(r.detail||"")}</p></span></label>`).join(""):`<div class="empty">${loadState==="loading"?"Loading rules…":"Rules will appear here."}</div>`;
+  $("#rulelist").querySelectorAll("[data-rule]").forEach(c=>c.onchange=()=>db&&db.collection("rules").doc(c.dataset.rule).update({on:c.checked,changedAt:new Date().toISOString()}).catch(()=>{$("#sync").textContent="Couldn't save that rule. Try again."}));
+  if(editing()){pendingList=true;return}
+  renderList();
+}
+document.addEventListener("focusout",e=>{if(e.target.matches&&e.target.matches("#list textarea")&&pendingList)setTimeout(()=>{if(!editing()){pendingList=false;renderList()}},150)});
+function renderList(){
+  let v=items.filter(i=>filterPlat==="all"||i.platform===filterPlat);
+  v=v.filter(i=>filterState==="every"||(filterState==="open"?["new","approved"].includes(i.state):i.state===filterState));
+  const rank=i=>(i.needsAnswer?2:0)+(i.kind==="dm"&&i.authorFollows===false?1:0);
+  const t=i=>String(i.commentedAt||i.foundAt||"");
+  v.sort((a,b)=>rank(b)-rank(a)||t(b).localeCompare(t(a)));
+  $("#list").innerHTML=v.length?v.map(card).join(""):emptyMsg();
+  $("#retry")?.addEventListener("click",()=>location.reload());
+  $("#list").querySelectorAll(".card").forEach(el=>{
+    const id=el.dataset.id, t=el.querySelector("[data-edit]");
+    let timer; t.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>save(id,{reply:t.value},true),700)});
+    el.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
+      const cur=items.find(x=>x.id===id); if(!cur)return;
+      if(b.dataset.act==="approve"&&cur.state!=="approved"&&!t.value.trim()){el.querySelector(".err").hidden=false;t.focus();return}
+      el.querySelector(".err").hidden=true;
+      if(b.dataset.act==="approve") save(id,{reply:t.value,state:cur.state==="approved"?"new":"approved",decidedAt:new Date().toISOString()});
+      else save(id,{state:cur.state==="skipped"?"new":"skipped",decidedAt:new Date().toISOString()});
+    });
+  });
+}
+function setSync(){
+  if(loadState==="ready")$("#sync").textContent=`Live · ${items.length} comments · updated ${new Date(loadedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}`;
+}
+async function save(id,patch,quiet){
+  const i=items.find(x=>x.id===id); if(i)Object.assign(i,patch);
+  if(!quiet)render(); else tally();
+  if(!db){$("#sync").textContent="Not connected, so this change wasn't saved. Reload the page.";return}
+  try{await db.collection("items").doc(id).update({...patch,updatedAt:new Date().toISOString()}); $("#sync").textContent="Saved"; setTimeout(setSync,1200)}
+  catch(e){if(e&&e.code==="invalid_argument"){canWrite=false;render()}$("#sync").textContent="Couldn't save. Check your connection and try again."}
+}
+
+/* ---------- Storage ----------
+   Inside Claude (claude.ai artifact with the `db` capability) the page uses Claude's shared store,
+   so your agent can read and write the same rows with its ArtifactData tool.
+   Anywhere else it falls back to this local store (browser localStorage) with JSON import/export,
+   so the page works as a plain HTML file. Swap this for Supabase/Firebase if you want a hosted store. */
+function localDB(){
+  const KEY="reply-desk-db-v1"; const subs={};
+  const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}}};
+  const save=d=>{try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}};
+  let data=load();
+  const emit=c=>(subs[c]||[]).forEach(fn=>fn(snap(c)));
+  const snap=c=>{const docs=Object.entries(data[c]||{}).map(([id,v])=>({id,data:()=>v,exists:true}));return {docs,size:docs.length,empty:!docs.length}};
+  const api={
+    local:true,
+    collection(c){return {
+      onSnapshot(fn){(subs[c]=subs[c]||[]).push(fn);setTimeout(()=>fn(snap(c)),0);return ()=>{subs[c]=subs[c].filter(f=>f!==fn)}},
+      doc(id){return {
+        async get(){const v=data[c]?.[id];return {id,exists:!!v,data:()=>v}},
+        async set(v){data[c]=data[c]||{};data[c][id]={...v};save(data);emit(c)},
+        async update(v){data[c]=data[c]||{};data[c][id]={...(data[c][id]||{}),...v};save(data);emit(c)}
+      }}
+    }},
+    exportJSON(){return JSON.stringify(data,null,2)},
+    importJSON(txt){const d=JSON.parse(txt);for(const c of Object.keys(d)){data[c]={...(data[c]||{}),...d[c]}}save(data);Object.keys(data).forEach(emit)}
+  };
+  return api;
+}
+
+const withTimeout=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),ms))]);
+render();
+document.getElementById("exp")?.addEventListener("click",async()=>{const t=db?.exportJSON?.();if(!t)return;try{await navigator.clipboard.writeText(t);$("#localmsg").textContent="Copied to clipboard."}catch(e){$("#localmsg").textContent="Copy failed; open the console and run db.exportJSON()."}});
+document.getElementById("imp")?.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{db.importJSON(r.result);$("#localmsg").textContent="Imported."}catch(err){$("#localmsg").textContent="That file isn't valid Reply Desk JSON."}};r.readAsText(f)});
+document.getElementById("sample")?.addEventListener("click",async()=>{try{const r=await fetch("../examples/sample-data.json");db.importJSON(await r.text());$("#localmsg").textContent="Sample data loaded."}catch(e){$("#localmsg").textContent="Couldn't load the sample file. Use Import JSON instead."}});
+(async()=>{
+  if(window.claude?.use){try{db=await withTimeout(window.claude.use("db"),15000)}catch(e){db=null}}
+  if(!db){db=localDB();document.getElementById("localbar").hidden=false}
+  /* Subscribe first: nothing else may delay the comments. */
+  const guard=setTimeout(()=>{if(loadState==="loading"){loadState="error";$("#sync").textContent="Still waiting for your comments";render()}},20000);
+  db.collection("items").onSnapshot(s=>{
+    items=s.docs.map(d=>({id:d.id,...d.data()})); clearTimeout(guard);
+    loadState="ready"; loadedAt=Date.now(); setSync(); render();
+  },()=>{loadState=items.length?"ready":"error";$("#sync").textContent="Lost connection. Reload to retry.";render()});
+  db.collection("rules").onSnapshot(s=>{rules=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{});
+  /* Then, in the background: write access and the saved theme. */
+  (async()=>{
+    try{
+      const user=await withTimeout(window.claude?.use?.("user"),10000); if(!user)return;
+      const w=await withTimeout(user.can?.("data.write"),8000); if(w===false){canWrite=false;render()}
+      const uid=await withTimeout(user.id?.(),8000); if(!uid)return;
+      prefsRef=db.collection("data/users/"+uid).doc("prefs");
+      const p=await withTimeout(prefsRef.get(),8000); const t=p?.exists&&p.data()?.theme;
+      if(t){applyTheme(t);try{localStorage.setItem("rd-theme",t)}catch(e){}}
+    }catch(e){}
+  })();
+})();
+</script>
