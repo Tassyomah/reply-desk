@@ -48,13 +48,35 @@ pre{margin:0;background:var(--card);border:1px solid var(--line);border-radius:1
   </p>
 </div>
 <script>
-const pre=document.getElementById("prompt"),msg=document.getElementById("msg");let text="";
-fetch("PROMPT.md").then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{text=t;pre.textContent=t})
+const pre=document.getElementById("prompt"),msg=document.getElementById("msg"),btn=document.getElementById("copy");let text="";
+fetch("PROMPT.md",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{text=t;pre.textContent=t})
   .catch(()=>{pre.textContent="The prompt didn't load. Use Download .md, or open it on GitHub."});
-document.getElementById("copy").addEventListener("click",async()=>{
+/* Copy that works in normal browsers and in in-app browsers (Instagram, TikTok, LinkedIn) that block the Clipboard API. */
+function legacyCopy(t){
+  const ta=document.createElement("textarea");
+  ta.value=t;ta.setAttribute("readonly","");
+  ta.style.cssText="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px";
+  document.body.appendChild(ta);
+  ta.focus();ta.select();try{ta.setSelectionRange(0,t.length)}catch(e){}
+  let ok=false;try{ok=document.execCommand("copy")}catch(e){}
+  ta.remove();return ok;
+}
+async function copyText(t){
+  if(navigator.clipboard&&window.isSecureContext){
+    try{await navigator.clipboard.writeText(t);return true}catch(e){}
+  }
+  return legacyCopy(t);
+}
+btn.addEventListener("click",async()=>{
   if(!text){msg.textContent="Still loading. Try again in a second.";return}
-  try{await navigator.clipboard.writeText(text);msg.textContent="Copied. Now paste it into Claude or Codex."}
-  catch(e){const r=document.createRange();r.selectNodeContents(pre);const s=getSelection();s.removeAllRanges();s.addRange(r);msg.textContent="Selected. Press copy on your keyboard or phone menu."}
+  const ok=await copyText(text);
+  if(ok){
+    btn.textContent="Copied ✓";msg.textContent="Now paste it into Claude or Codex.";
+    setTimeout(()=>{btn.textContent="Copy prompt"},2500);
+  }else{
+    const r=document.createRange();r.selectNodeContents(pre);const s=getSelection();s.removeAllRanges();s.addRange(r);
+    msg.textContent="Your browser blocked copying. The prompt is selected: use your Copy menu, or tap Download .md.";
+  }
 });
 </script>
 </html>
