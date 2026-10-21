@@ -292,7 +292,11 @@ document.getElementById("imp")?.addEventListener("change",e=>{const f=e.target.f
 document.getElementById("sample")?.addEventListener("click",async()=>{try{const r=await fetch("../examples/sample-data.json");db.importJSON(await r.text());$("#localmsg").textContent="Sample data loaded."}catch(e){$("#localmsg").textContent="Couldn't load the sample file. Use Import JSON instead."}});
 (async()=>{
   if(window.claude?.use){try{db=await withTimeout(window.claude.use("db"),15000)}catch(e){db=null}}
-  if(!db){db=localDB();document.getElementById("localbar").hidden=false}
+  if(!db){db=localDB();document.getElementById("localbar").hidden=false;
+    /* First visit to the demo: show the sample so the page isn't empty. */
+    let seen=false;try{seen=!!localStorage.getItem("reply-desk-seen")}catch(e){}
+    if(!seen){try{localStorage.setItem("reply-desk-seen","1")}catch(e){}
+      try{const r=await fetch("../examples/sample-data.json");if(r.ok){db.importJSON(await r.text());$("#localmsg").textContent="Showing sample comments. They're made up."}}catch(e){}}}
   /* Subscribe first: nothing else may delay the comments. */
   const guard=setTimeout(()=>{if(loadState==="loading"){loadState="error";$("#sync").textContent="Still waiting for your comments";render()}},20000);
   db.collection("items").onSnapshot(s=>{
