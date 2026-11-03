@@ -2,7 +2,7 @@
 
 An approval-first social media reply desk, run by an AI agent.
 
-Your agent sweeps your comments on YouTube, TikTok, Instagram, X, LinkedIn and Facebook, and drafts a reply in your voice for each one. You edit, approve or skip them on one page. Then the agent posts only what you approved, reads every reply back on the platform, and logs it.
+Your agent sweeps your comments on YouTube, TikTok, Instagram, X, LinkedIn and Facebook, and drafts a reply in your voice for each one. You edit, approve or skip them on one page, and can add a reaction (a like, a heart, a LinkedIn Celebrate) with or without a reply. Then the agent posts only what you approved, reads every reply back on the platform, and logs it.
 
 Built by [Tassy Omah](https://www.instagram.com/tassy.omah/) with Claude.
 
@@ -47,6 +47,7 @@ sweep comments ──► drafts land in Reply Desk ──► you approve / edit 
 - **Nothing is posted without your tick.** The automation rules start switched off. You turn on one kind of reply at a time, once you trust it.
 - **Your wording is posted exactly as you wrote it.** Every instruction you give is written to a dated log and checked before posting.
 - **Every post is verified on the platform** before it's marked posted.
+- **Reactions only offer what the platform has.** Instagram, TikTok and X get Like; YouTube gets Like and Creator heart; Facebook and LinkedIn get their full reaction sets. React-only items are fine: no reply needed.
 
 ## License
 

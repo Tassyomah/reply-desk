@@ -3,260 +3,329 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Reply Desk</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Schibsted+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap">
 <style>
-/* Layout: a single working column. Top: platform tally strip. Then tabs (Inbox / Log / Rules). Inbox = cards, one per comment, with the draft reply editable in place and Approve / Skip on the right. */
+/* Layout: a quiet left rail (views, platforms as a tree with counts, status segment, theme) and one working column.
+   The inbox is grouped by post: one header per post, its comments hang off a tree line underneath.
+   Colour carries state only (one accent). Structure, spacing and weight do the rest. */
 :root{
-  --paper:#f7f6fb; --card:#ffffff; --ink:#17152b; --muted:#66637d; --line:#e3e0ef;
-  --coral:#f0785a; --coral-ink:#8f2f17; --indigo:#4a3fb5; --indigo-soft:#ecebfb;
-  --ok:#1f7a55; --ok-soft:#e3f4ec; --warn:#9a5b00; --warn-soft:#fbf0dc;
-  --display:"Bricolage Grotesque",Arial Black,system-ui,sans-serif;
-  --body:"Schibsted Grotesk",Helvetica,Arial,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --bg:#fbfbfa; --surface:#ffffff; --ink:#191919; --ink-2:#55534e; --ink-3:#8c8a84; --line:#ebeae6; --line-2:#dcdad4;
+  --hover:rgba(25,25,25,.05); --accent:#3b4cca; --accent-soft:#eef0fb; --ok:#1d7a4f; --ok-soft:#e8f4ee; --warn:#94600a; --warn-soft:#fbf3e3; --bad:#b3341f;
+  --font:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:8px; --fast:80ms; --moderate:160ms;
 }
-/* Theme lives as a class on <body> (theme-light default, theme-dark, theme-auto), because the viewer rewrites data-theme on <html>. */
 @media (prefers-color-scheme: dark){body.theme-auto{
-  --paper:#111020; --card:#1b1a2e; --ink:#efedfa; --muted:#a29fbb; --line:#2e2c47;
-  --coral:#ff8d70; --coral-ink:#ffc2b2; --indigo:#a59cff; --indigo-soft:#272457;
-  --ok:#5fd3a0; --ok-soft:#173a2c; --warn:#f2bd62; --warn-soft:#3a2c12; color-scheme:dark}}
+  --bg:#141414; --surface:#1b1b1b; --ink:#ededeb; --ink-2:#b3b1ab; --ink-3:#7f7d78; --line:#2a2a29; --line-2:#3a3a38;
+  --hover:rgba(255,255,255,.06); --accent:#9aa6ff; --accent-soft:#23264a; --ok:#5fcf97; --ok-soft:#16301f; --warn:#e9b65c; --warn-soft:#33270f; --bad:#ff8f7a; color-scheme:dark}}
 body.theme-light{color-scheme:light}
 body.theme-dark{
-  --paper:#111020; --card:#1b1a2e; --ink:#efedfa; --muted:#a29fbb; --line:#2e2c47;
-  --coral:#ff8d70; --coral-ink:#ffc2b2; --indigo:#a59cff; --indigo-soft:#272457;
-  --ok:#5fd3a0; --ok-soft:#173a2c; --warn:#f2bd62; --warn-soft:#3a2c12; color-scheme:dark}
+  --bg:#141414; --surface:#1b1b1b; --ink:#ededeb; --ink-2:#b3b1ab; --ink-3:#7f7d78; --line:#2a2a29; --line-2:#3a3a38;
+  --hover:rgba(255,255,255,.06); --accent:#9aa6ff; --accent-soft:#23264a; --ok:#5fcf97; --ok-soft:#16301f; --warn:#e9b65c; --warn-soft:#33270f; --bad:#ff8f7a; color-scheme:dark}
 *{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0}
-body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
-.wrap{max-width:880px;margin:0 auto;display:grid;gap:20px}
-header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(30px,5vw,44px);line-height:1;margin:0;letter-spacing:-.02em}
-h1 span{color:var(--coral)}
-.sub{color:var(--muted);margin:6px 0 0;max-width:56ch}
-.sync{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.headright{display:grid;gap:8px;justify-items:end}
-.theme{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--card);padding:3px;gap:2px}
-.theme button{font:600 13px var(--body);border:0;background:transparent;color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}
-.theme button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-.tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
-.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px}
-.tile b{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
-.tile small{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}
-.tabs button,.chip{font:600 14px var(--body);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;cursor:pointer}
-.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.filters{display:flex;gap:6px;flex-wrap:wrap}
-.chip{font-size:13px;padding:5px 11px}
-.chip[aria-pressed="true"]{background:var(--indigo-soft);border-color:var(--indigo);color:var(--indigo)}
-.list{display:grid;gap:10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px}
-.card.approved{border-color:var(--indigo)}
-.card.posted{opacity:.75}
-.meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--muted)}
-.plat{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:6px;background:var(--indigo-soft);color:var(--indigo)}
-.who{font-weight:600;color:var(--ink)}
-.post{font-style:italic}
-.comment{margin:6px 0 0;font-size:16px;min-width:0;overflow-wrap:anywhere}
-.flag{font:500 11px var(--mono);padding:2px 7px;border-radius:6px;background:var(--warn-soft);color:var(--warn)}
-label.lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:10px}
-textarea{width:100%;min-height:58px;resize:vertical;font:15px/1.45 var(--body);color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-textarea:focus-visible,button:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
-.actions{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:118px}
-.btn{font:600 14px var(--body);border-radius:10px;padding:8px 12px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}
-.btn.go{background:var(--indigo);border-color:var(--indigo);color:#fff}
-.btn.go[aria-pressed="true"]{background:var(--ok);border-color:var(--ok)}
-.state{font:500 12px var(--mono);text-align:center;padding:4px 6px;border-radius:8px}
-.s-new{background:var(--warn-soft);color:var(--warn)}
-.s-approved{background:var(--indigo-soft);color:var(--indigo)}
-.s-posted{background:var(--ok-soft);color:var(--ok)}
-.s-failed{background:var(--warn-soft);color:var(--coral-ink)}
-.s-skipped{background:var(--paper);color:var(--muted)}
-.empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:22px;color:var(--muted)}
-table{width:100%;border-collapse:collapse;font-size:14px}
-.tablewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font);font-optical-sizing:auto;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+button{font:inherit;color:inherit}
+a{color:inherit}
+.app{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px;align-items:start}
+/* Rail */
+.rail{position:sticky;top:calc(24px + env(safe-area-inset-top,0px));display:grid;gap:22px}
+.brand{font-weight:650;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:16px;height:16px;border-radius:5px;background:var(--ink);display:inline-block}
+.group-label{font-size:12px;color:var(--ink-3);margin:0 0 4px 8px}
+.nav{position:relative;display:grid;gap:0}
+.hl{position:absolute;left:0;right:0;top:0;height:0;border-radius:6px;background:var(--hover);opacity:0;pointer-events:none;
+  transition:transform var(--fast) ease-out,height var(--fast) ease-out,opacity var(--fast)}
+.item{position:relative;display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;text-align:left;cursor:pointer;
+  padding:5px 8px;border-radius:6px;color:var(--ink-2);min-height:30px}
+.item .lab{display:inline-grid}
+.item .lab::after{content:attr(data-t);font-weight:600;visibility:hidden;height:0;overflow:hidden}
+.item .lab>span{grid-area:1/1}
+.item[aria-current="true"]{color:var(--ink)}
+.item[aria-current="true"] .lab>span{font-weight:600}
+.item .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-3);font-size:13px}
+.item[aria-current="true"] .n{color:var(--ink)}
+.sub{padding-left:14px;margin-left:13px;border-left:1px solid var(--line)}
+.seg{position:relative;display:grid;grid-template-columns:repeat(3,1fr);background:var(--hover);border-radius:8px;padding:2px}
+.seg button{position:relative;z-index:1;border:0;background:transparent;border-radius:6px;padding:4px 0;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.seg button[aria-pressed="true"]{color:var(--ink);font-weight:550}
+.seg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc((100% - 4px)/3);border-radius:6px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line);transition:transform var(--moderate) cubic-bezier(.2,.8,.2,1)}
+/* Main */
+main{min-width:0;display:grid;gap:18px}
+.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+h1{font-size:22px;font-weight:650;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.summary{color:var(--ink-2);margin:2px 0 0}
+.localbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.localbar[hidden]{display:none}
+.hint{margin:4px 0 0;font-size:13px;color:var(--ink-3)}
+.summary b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sync{font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.sync::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.sync.off::before{background:var(--bad)}
+.states{display:flex;gap:2px;flex-wrap:wrap}
+.states button{border:0;background:transparent;border-radius:6px;padding:4px 9px;color:var(--ink-3);cursor:pointer;font-size:13px}
+.states button:hover{background:var(--hover);color:var(--ink-2)}
+.states button[aria-pressed="true"]{color:var(--ink);background:var(--hover);font-weight:550}
+.states .n{font-variant-numeric:tabular-nums;margin-left:4px;color:var(--ink-3);font-weight:400}
+/* Post groups */
+.post{display:grid;gap:0}
+.post-h{display:flex;align-items:center;gap:10px;padding:6px 0 8px;min-width:0}
+.pf{font-size:12px;color:var(--ink-2);border:1px solid var(--line-2);border-radius:5px;padding:0 6px;line-height:20px;flex:none}
+.post-t{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post-n{color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none}
+.post-h a{margin-left:auto;font-size:13px;color:var(--ink-3);text-decoration:none;flex:none}
+.post-h a:hover{color:var(--ink)}
+.rows{margin-left:9px;border-left:1px solid var(--line-2);display:grid;gap:10px;padding:2px 0 6px 18px}
+.row{position:relative;display:grid;gap:0;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.row::before{content:"";position:absolute;left:-19px;top:24px;width:18px;border-top:1px solid var(--line-2)}
+.row.approved{border-color:var(--accent)}
+.row.posted{opacity:.7}
+.who{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:13px;color:var(--ink-3)}
+.who b{color:var(--ink);font-weight:600}
+.tag{font-size:12px;color:var(--ink-2);background:var(--hover);border-radius:4px;padding:0 6px;line-height:19px}
+.tag.ask{color:var(--warn);background:var(--warn-soft)}
+.said{margin:3px 0 0;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.reply{margin-top:12px;display:grid;gap:5px}
+.reply label{font-size:12.5px;font-weight:550;color:var(--ink-2)}
+textarea{width:100%;border:1px solid var(--line-2);background:var(--bg);border-radius:8px;resize:vertical;font:15px/1.5 var(--font);color:var(--ink);padding:9px 11px;min-height:64px;field-sizing:content;white-space:pre-wrap;outline:none;transition:border-color var(--fast),box-shadow var(--fast)}
+textarea:hover{border-color:var(--ink-3)}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
+textarea[readonly]{background:transparent;border-style:dashed;resize:none}
+textarea::placeholder{color:var(--ink-3)}
+.links,.note{margin:6px 0 0;font-size:13px;color:var(--ink-3);overflow-wrap:anywhere}
+.links{display:flex;flex-wrap:wrap;gap:2px 12px}
+.links a{color:var(--ink-2);text-underline-offset:2px}
+.err{color:var(--bad)}
+/* Reactions */
+.reacts{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:10px}
+.reacts .lbl{font-size:12.5px;font-weight:550;color:var(--ink-2);margin-right:4px}
+.rx{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--surface);border-radius:999px;padding:4px 11px 4px 9px;min-height:30px;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;
+  transition:background var(--fast),border-color var(--fast),transform var(--fast)}
+.rx:hover{background:var(--hover)}
+.rx:active{transform:scale(.96)}
+.rx[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.rx .e{font-size:15px;line-height:1}
+.rx[aria-pressed="true"]::after{content:"✓";color:var(--accent);font-weight:700}
+.rx:disabled{cursor:default}
+/* Actions */
+.act{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:550;color:var(--ink-3);padding:3px 10px;border-radius:999px;background:var(--hover)}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.st.new::before{background:var(--warn)} .st.new{color:var(--warn);background:var(--warn-soft)}
+.st.approved::before{background:var(--accent)} .st.approved{color:var(--accent);background:var(--accent-soft)}
+.st.posted::before{background:var(--ok)} .st.posted{color:var(--ok);background:var(--ok-soft)}
+.st.failed::before{background:var(--bad)} .st.failed{color:var(--bad)}
+.btns{display:flex;gap:6px}
+.b{border:1px solid var(--line-2);background:var(--surface);border-radius:8px;padding:7px 16px;font-size:14px;font-weight:550;cursor:pointer;transition:background var(--fast),border-color var(--fast)}
+.b:hover{background:var(--hover)}
+.b.p{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.b.p:hover{opacity:.88}
+.b.p[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.b.g{color:var(--ink-2)}
+.b.g:hover{color:var(--ink);background:var(--hover)}
+.b:disabled{opacity:.5;cursor:default}
+.when{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.empty{padding:40px 0;color:var(--ink-3);text-align:center}
+.empty .b{margin-top:10px}
+/* Log + rules */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
-td.t{font-family:var(--mono);font-size:12px;white-space:nowrap;color:var(--muted)}
-.rule{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
-.rule input{width:20px;height:20px;accent-color:var(--indigo);margin-top:2px}
-.rule h3{margin:0;font-size:16px}
-.rule p{margin:4px 0 0;color:var(--muted);font-size:14px}
-.note{font-size:13px;color:var(--muted)}
-@media (max-width:560px){.card{grid-template-columns:1fr}.actions{flex-direction:row;flex-wrap:wrap}.actions>*{flex:1}}
-@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s,opacity .2s}}
+tr:last-child td{border-bottom:0}
+th{font-size:12px;color:var(--ink-3);font-weight:500}
+td.t{white-space:nowrap;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.rule{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.rule input{width:16px;height:16px;accent-color:var(--accent);margin-top:3px}
+.rule h3{margin:0;font-size:14px;font-weight:600}
+.rule p{margin:2px 0 0;color:var(--ink-2)}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;gap:18px}
+  .rail{position:static;gap:12px}
+  .rail .platforms,.rail .theme-wrap .group-label{display:none}
+  .nav.views{display:flex;gap:2px;flex-wrap:wrap}.nav.views .item{width:auto}.nav.views .hl{display:none}
+  .rows{margin-left:0;border-left:0;padding-left:0}.row::before{display:none}
+  .mplat{display:flex!important}
+}
+.mplat{display:none;gap:2px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
-<div class="wrap">
-  <header>
-    <div>
-      <h1>Reply <span>Desk</span></h1>
-      <p class="sub">Claude sweeps your comments and drafts a reply for each. Edit the draft, then approve or skip it. Only approved replies get posted, and every post is logged.</p>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><i aria-hidden="true"></i>Reply Desk</div>
+    <nav class="nav views" id="views" aria-label="Views"><div class="hl"></div></nav>
+    <div class="platforms"><p class="group-label">Platforms</p><nav class="nav" id="plats" aria-label="Platforms"><div class="hl"></div></nav></div>
+    <div class="theme-wrap"><p class="group-label">Theme</p>
+      <div class="seg" id="theme" role="group" aria-label="Theme"><span class="thumb"></span>
+        <button data-th="light" aria-pressed="true">Light</button><button data-th="dark" aria-pressed="false">Dark</button><button data-th="auto" aria-pressed="false">Auto</button>
+      </div></div>
+  </aside>
+
+  <main>
+    <div class="top">
+      <div><h1 id="title">Inbox</h1><p class="summary" id="summary">Loading your comments…</p><p class="hint">Edit the reply, pick a reaction if you like, then Approve or Skip. Nothing goes out until you say "post".</p></div>
+      <span class="sync" id="sync">Connecting</span>
     </div>
-    <div class="headright">
-      <div class="theme" role="group" aria-label="Theme">
-        <button id="th-light" data-th="light" aria-pressed="true">Light</button>
-        <button id="th-dark" data-th="dark" aria-pressed="false">Dark</button>
-        <button id="th-auto" data-th="auto" aria-pressed="false">Auto</button>
-      </div>
-      <div class="sync" id="sync">Connecting…</div>
+    <div class="localbar" id="localbar" hidden>
+      <span>Demo mode: the comments below are made up and saved only in this browser.</span>
+      <button class="b" type="button" id="exp">Export JSON</button>
+      <label class="b" for="imp" style="cursor:pointer">Import JSON</label><input id="imp" type="file" accept="application/json" hidden>
+      <button class="b" type="button" id="sample">Load sample data</button>
+      <span id="localmsg"></span>
     </div>
-  </header>
-
-  <div class="note" id="localbar" hidden style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-    <span>Local mode: data is saved in this browser.</span>
-    <button class="btn" type="button" id="exp">Export JSON</button>
-    <label class="btn" for="imp" style="cursor:pointer">Import JSON</label><input id="imp" type="file" accept="application/json" hidden>
-    <button class="btn" type="button" id="sample">Load sample data</button>
-    <span id="localmsg"></span>
-  </div>
-  <section class="tally" id="tally" aria-label="Counts"></section>
-
-  <nav class="tabs" role="tablist">
-    <button role="tab" id="tab-inbox" aria-selected="true" data-tab="inbox">Inbox</button>
-    <button role="tab" id="tab-log" aria-selected="false" data-tab="log">Log</button>
-    <button role="tab" id="tab-rules" aria-selected="false" data-tab="rules">Automation rules</button>
-  </nav>
-
-  <section id="inbox">
-    <div class="filters" id="filters" style="margin-bottom:12px"></div>
-    <div class="list" id="list"><div class="empty">Waiting for the store. New comments from YouTube, TikTok, Instagram, X and LinkedIn appear here after each sweep.</div></div>
-  </section>
-
-  <section id="log" hidden>
-    <div class="tablewrap"><table><thead><tr><th>When</th><th>Platform</th><th>Account</th><th>To</th><th>Reply posted</th><th>Checked</th></tr></thead><tbody id="logbody"><tr><td colspan="6" class="note">Nothing posted yet.</td></tr></tbody></table></div>
-  </section>
-
-  <section id="rules" hidden>
-    <p class="note" style="margin:0 0 10px">Tick a rule only when you're happy for Claude to handle that kind of reply without asking. Unticked rules always wait for your approval.</p>
-    <div class="list" id="rulelist"></div>
-  </section>
+    <div class="mplat" id="mplats"></div>
+    <section id="inbox">
+      <div class="states" id="states" style="margin-bottom:6px"></div>
+      <div id="list"><div class="empty">Loading your comments…</div></div>
+    </section>
+    <section id="log" hidden>
+      <div class="tablewrap"><table><thead><tr><th>When</th><th>Platform</th><th>To</th><th>Reply</th><th>Reaction</th><th>Checked</th></tr></thead><tbody id="logbody"></tbody></table></div>
+    </section>
+    <section id="rules" hidden>
+      <p class="summary" style="margin:0">Tick a rule only when Claude may handle that kind of reply without asking. Unticked rules always wait for you.</p>
+      <div id="rulelist"></div>
+    </section>
+  </main>
 </div>
 
 <script>
 const PLAT={youtube:"YouTube",tiktok:"TikTok",instagram:"Instagram",x:"X",linkedin:"LinkedIn",facebook:"Facebook"};
-const STATE_LABEL={new:"Needs you",approved:"Approved",posted:"Posted",skipped:"Skipped",failed:"Failed"};
-const KIND={comment:"Comment",reply:"Reply",mention:"Mention",dm:"DM"};
-let items=[],rules=[],db=null,filterPlat="all",filterState="open",canWrite=true;
+/* What each platform lets you do to someone else's comment, as of Nov 2026. */
+const REACT={
+  instagram:[["like","❤️","Like"]],
+  tiktok:[["like","❤️","Like"]],
+  x:[["like","❤️","Like"]],
+  youtube:[["like","👍","Like"],["heart","❤️","Creator heart"]],
+  facebook:[["like","👍","Like"],["love","❤️","Love"],["care","🥰","Care"],["haha","😆","Haha"],["wow","😮","Wow"],["sad","😢","Sad"],["angry","😡","Angry"]],
+  linkedin:[["like","👍","Like"],["celebrate","👏","Celebrate"],["support","🫶","Support"],["love","❤️","Love"],["insightful","💡","Insightful"],["funny","😄","Funny"]]
+};
+const STATE={new:"Needs you",approved:"Approved",posted:"Posted",skipped:"Skipped",failed:"Failed"};
+const KIND={reply:"Reply",mention:"Mention",dm:"DM"};
+let items=[],rules=[],db=null,view="inbox",plat="all",st="open",canWrite=true,loadState="loading",loadedAt=null,pending=false,prefsRef=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=iso=>{try{return new Date(iso).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}catch(e){return iso||""}};
+const reactOf=i=>(REACT[i.platform]||[]).find(r=>r[0]===i.react);
 
-let prefsRef=null;
+/* One hover highlight per list that glides between rows (80 ms), out on empty space. */
+function fluid(nav){
+  const hl=nav.querySelector(".hl"); if(!hl)return;
+  nav.addEventListener("pointermove",e=>{const it=e.target.closest(".item");if(!it||!nav.contains(it)){hl.style.opacity=0;return}
+    const r=it.getBoundingClientRect(),p=nav.getBoundingClientRect();
+    const first=hl.style.opacity!=="1"; if(first){hl.style.transition="none"}
+    hl.style.transform=`translateY(${r.top-p.top}px)`;hl.style.height=r.height+"px";hl.style.left=(r.left-p.left)+"px";hl.style.width=r.width+"px";hl.style.right="auto";
+    if(first){hl.offsetHeight;hl.style.transition=""} hl.style.opacity=1});
+  nav.addEventListener("pointerleave",()=>hl.style.opacity=0);
+}
+fluid($("#views"));fluid($("#plats"));
+
 function applyTheme(t){
   if(!["light","dark","auto"].includes(t))t="light";
-  document.body.classList.remove("theme-light","theme-dark","theme-auto");
-  document.body.classList.add("theme-"+t);
-  document.querySelectorAll("[data-th]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.th===t));
+  document.body.classList.remove("theme-light","theme-dark","theme-auto");document.body.classList.add("theme-"+t);
+  const bs=[...document.querySelectorAll("[data-th]")];bs.forEach(b=>b.setAttribute("aria-pressed",b.dataset.th===t));
+  $("#theme .thumb").style.transform=`translateX(${bs.findIndex(b=>b.dataset.th===t)*100}%)`;
 }
-let savedTheme="light";try{savedTheme=localStorage.getItem("rd-theme")||"light"}catch(e){}
-applyTheme(savedTheme);
-document.querySelectorAll("[data-th]").forEach(b=>b.addEventListener("click",()=>{
-  applyTheme(b.dataset.th);
-  try{localStorage.setItem("rd-theme",b.dataset.th)}catch(e){}
-  prefsRef&&prefsRef.set({theme:b.dataset.th}).catch(()=>{});
-}));
-document.querySelectorAll('[role=tab]').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('[role=tab]').forEach(x=>x.setAttribute('aria-selected',x===b));
-  ["inbox","log","rules"].forEach(id=>$("#"+id).hidden=id!==b.dataset.tab);
-  try{localStorage.setItem('rd-tab',b.dataset.tab)}catch(e){}
-}));
-try{const t=localStorage.getItem('rd-tab');if(t)document.querySelector(`[data-tab="${t}"]`)?.click()}catch(e){}
+let saved="light";try{saved=localStorage.getItem("rd-theme")||"light"}catch(e){}
+applyTheme(saved);
+document.querySelectorAll("[data-th]").forEach(b=>b.addEventListener("click",()=>{applyTheme(b.dataset.th);try{localStorage.setItem("rd-theme",b.dataset.th)}catch(e){}prefsRef&&prefsRef.set({theme:b.dataset.th}).catch(()=>{})}));
+try{view=localStorage.getItem("rd-tab")||"inbox"}catch(e){}
+if(!["inbox","log","rules"].includes(view))view="inbox";
 
-function tally(){
-  const open=items.filter(i=>i.state==="new").length, appr=items.filter(i=>i.state==="approved").length,
-        posted=items.filter(i=>i.state==="posted").length;
-  const by=Object.keys(PLAT).map(p=>[p,items.filter(i=>i.platform===p&&i.state==="new").length]).filter(x=>x[1]);
-  $("#tally").innerHTML=`<div class="tile"><small>Needs you</small><b>${open}</b></div>
-    <div class="tile"><small>Approved, to post</small><b>${appr}</b></div>
-    <div class="tile"><small>Posted</small><b>${posted}</b></div>`+
-    by.map(([p,n])=>`<div class="tile"><small>${PLAT[p]}</small><b>${n}</b></div>`).join("");
+const inState=(i,k)=>k==="every"||(k==="open"?["new","approved"].includes(i.state):i.state===k);
+const navItem=(key,label,n,cur,attr)=>`<button class="item" ${attr}="${key}" aria-current="${cur}"><span class="lab" data-t="${esc(label)}"><span>${esc(label)}</span></span>${n==null?"":`<span class="n">${n}</span>`}</button>`;
+function rail(){
+  const open=items.filter(i=>i.state==="new").length, posted=items.filter(i=>i.state==="posted").length;
+  $("#views").innerHTML=`<div class="hl"></div>`+[["inbox","Inbox",open],["log","Log",posted],["rules","Automation rules",null]].map(([k,l,n])=>navItem(k,l,n,view===k,"data-v")).join("");
+  const ps=Object.keys(PLAT).filter(p=>items.some(i=>i.platform===p));
+  const cnt=p=>items.filter(i=>(p==="all"||i.platform===p)&&inState(i,st)).length;
+  $("#plats").innerHTML=`<div class="hl"></div>`+navItem("all","All platforms",cnt("all"),plat==="all","data-p")+`<div class="sub">`+ps.map(p=>navItem(p,PLAT[p],cnt(p),plat===p,"data-p")).join("")+`</div>`;
+  $("#mplats").innerHTML=`<div class="states">`+["all",...ps].map(p=>`<button data-p="${p}" aria-pressed="${plat===p}">${p==="all"?"All":PLAT[p]}<span class="n">${cnt(p)}</span></button>`).join("")+`</div>`;
+  document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{view=b.dataset.v;try{localStorage.setItem("rd-tab",view)}catch(e){}render()});
+  document.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{plat=b.dataset.p;view="inbox";render()});
+  ["inbox","log","rules"].forEach(id=>$("#"+id).hidden=id!==view);
+  $("#title").textContent={inbox:plat==="all"?"Inbox":PLAT[plat],log:"Log",rules:"Automation rules"}[view];
+  const appr=items.filter(i=>i.state==="approved").length;
+  $("#summary").innerHTML=loadState!=="ready"?(loadState==="loading"?"Loading your comments…":"Not connected"):
+    view==="log"?`<b>${posted}</b> posted, each read back on the platform`:view==="rules"?"What Claude may do without asking":
+    `<b>${open}</b> need you · <b>${appr}</b> approved, waiting to post`;
 }
-function filters(){
-  const plats=["all",...Object.keys(PLAT).filter(p=>items.some(i=>i.platform===p))];
-  const states=[["open","Open"],["approved","Approved"],["posted","Posted"],["skipped","Skipped"],["failed","Failed"],["every","All"]];
-  const inState=(i,k)=>k==="every"||(k==="open"?["new","approved"].includes(i.state):i.state===k);
-  const nP=p=>items.filter(i=>(p==="all"||i.platform===p)&&inState(i,filterState)).length;
-  const nS=k=>items.filter(i=>(filterPlat==="all"||i.platform===filterPlat)&&inState(i,k)).length;
-  $("#filters").innerHTML=plats.map(p=>`<button class="chip" type="button" aria-pressed="${filterPlat===p}" data-p="${p}">${p==="all"?"All platforms":PLAT[p]} · ${nP(p)}</button>`).join("")+
-    `<span style="width:8px"></span>`+states.map(([k,l])=>`<button class="chip" type="button" aria-pressed="${filterState===k}" data-s="${k}">${l} · ${nS(k)}</button>`).join("");
-  $("#filters").querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{filterPlat=b.dataset.p;render()});
-  $("#filters").querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{filterState=b.dataset.s;render()});
+function states(){
+  const l=[["open","Open"],["approved","Approved"],["posted","Posted"],["skipped","Skipped"],["every","All"]];
+  const n=k=>items.filter(i=>(plat==="all"||i.platform===plat)&&inState(i,k)).length;
+  $("#states").innerHTML=l.map(([k,t])=>`<button data-s="${k}" aria-pressed="${st===k}">${t}<span class="n">${n(k)}</span></button>`).join("");
+  $("#states").querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{st=b.dataset.s;render()});
 }
-function card(i){
-  const done=i.state==="posted";
-  return `<article class="card ${i.state}" data-id="${esc(i.id)}">
+function row(i){
+  const done=i.state==="posted", ro=done||!canWrite, rs=REACT[i.platform]||[], canReact=rs.length&&i.kind!=="dm";
+  const links=[...new Set((i.reply||"").match(/https?:\/\/[^\s)]+/g)||[])];
+  const picked=reactOf(i);
+  return `<div class="row ${i.state}" data-id="${esc(i.id)}">
     <div style="min-width:0">
-      <div class="meta"><span class="plat">${PLAT[i.platform]||esc(i.platform)}</span>${i.isMain===false?`<span class="plat">${esc(i.account)}</span>`:""}
-        ${i.kind&&i.kind!=="comment"?`<span class="plat">${KIND[i.kind]||esc(i.kind)}</span>`:""}<span class="who">${esc(i.author)}</span><span>${esc(i.when||"")}</span>${i.needsAnswer?`<span class="flag">Needs a real answer</span>`:""}${i.threadHasOwnerReply?`<span class="flag">Already answered</span>`:""}</div>
-      <div class="meta post">on ${/^https?:\/\//.test(i.postUrl||"")?`<a href="${esc(i.postUrl)}" target="_blank" rel="noopener">“${esc(i.post||"post")}”</a>`:`“${esc(i.post||"")}”`}</div>
-      <p class="comment">${esc(i.text)}</p>
-      ${i.translation?`<p class="note" style="margin:4px 0 0">Translation: ${esc(i.translation)}</p>`:""}
-      <label class="lbl" for="r-${esc(i.id)}">${done?"Posted reply":"Reply"}</label>
-      <textarea id="r-${esc(i.id)}" ${done||!canWrite?"readonly":""} data-edit placeholder="${i.needsAnswer?"Type your answer here. It gets posted word for word.":"Type a reply"}">${esc(i.reply||"")}</textarea>
-      <p class="note err" hidden style="margin:6px 0 0;color:var(--coral-ink)">Write a reply before approving.</p>
-      ${i.note?`<p class="note" style="margin:6px 0 0">${esc(i.note)}</p>`:""}
-      ${i.state==="failed"&&i.failReason?`<p class="note" style="margin:6px 0 0;color:var(--coral-ink)">Not posted: ${esc(i.failReason)}</p>`:""}
+      <div class="who"><b>${esc(i.author)}</b>${i.kind&&KIND[i.kind]?`<span class="tag">${KIND[i.kind]}</span>`:""}${i.account&&i.account!=="personal"?`<span class="tag">${esc(i.account)}</span>`:""}<span>${esc(i.when||"")}</span>${i.needsAnswer?`<span class="tag ask">Needs your answer</span>`:""}</div>
+      <p class="said">${esc(i.text)}</p>
+      <div class="reply"><label for="r-${esc(i.id)}">${done?"Your posted reply":"Your reply"}</label><textarea id="r-${esc(i.id)}" ${ro?"readonly":""} data-edit placeholder="${i.needsAnswer?"Your answer, posted word for word":canReact?"Write a reply, or just react below":"Write a reply"}">${esc(i.reply||"")}</textarea></div>
+      ${links.length?`<p class="links">${links.map(x=>`<a href="${esc(x)}" target="_blank" rel="noopener">${esc(x.replace(/^https?:\/\//,""))}</a>`).join("")}</p>`:""}
+      ${canReact?`<div class="reacts" role="group" aria-label="React on ${PLAT[i.platform]}"><span class="lbl">${done?"Reacted":"React (optional)"}</span>${(done?rs.filter(r=>r[0]===i.react):rs).map(([k,e,l])=>`<button class="rx" data-rx="${k}" aria-pressed="${i.react===k}" title="${l}" aria-label="${l}" ${ro?"disabled":""}><span class="e">${e}</span><span class="t">${l}</span></button>`).join("")||`<span class="lbl">none</span>`}</div>`:""}
+      <p class="note err" hidden>Write a reply or pick a reaction first.</p>
+      ${i.note?`<p class="note">${esc(i.note)}</p>`:""}
     </div>
-    <div class="actions">
-      <span class="state s-${i.state}">${STATE_LABEL[i.state]||i.state}</span>
-      ${done?`<span class="note">${fmt(i.postedAt)}</span>`:`
-      <button class="btn go" data-act="approve" aria-pressed="${i.state==="approved"}" ${canWrite?"":"disabled"}>${i.state==="approved"?"Approved ✓":"Approve"}</button>
-      <button class="btn" data-act="skip" ${canWrite?"":"disabled"}>${i.state==="skipped"?"Undo skip":"Skip"}</button>`}
-    </div></article>`;
-}
-let loadState="loading", loadedAt=null, pendingList=false;
-function emptyMsg(){
-  if(loadState==="loading")return `<div class="empty">Loading your comments…</div>`;
-  if(loadState==="error")return `<div class="empty">Couldn't load your comments. <button class="btn" id="retry" type="button">Reload</button></div>`;
-  if(loadState==="nodb")return `<div class="empty">This page needs you signed in to Claude to load your comments. Open it from claude.ai while signed in.</div>`;
-  if(!items.length)return `<div class="empty">No comments yet. They appear here after Claude's next sweep.</div>`;
-  const n=items.filter(i=>filterPlat==="all"||i.platform===filterPlat).length;
-  return `<div class="empty">No ${filterState==="open"?"open":(filterState==="every"?"":filterState)} comments ${filterPlat==="all"?"":"on "+PLAT[filterPlat]+" "}right now. ${n?`There ${n===1?"is":"are"} ${n} in other states. Pick “All” to see them.`:""}</div>`;
+    <div class="act">
+      <span class="st ${i.state}">${STATE[i.state]||esc(i.state)}</span>
+      ${done?`<span class="when">${fmt(i.postedAt)}</span>`:`<div class="btns">
+        <button class="b g" data-act="skip" ${canWrite?"":"disabled"}>${i.state==="skipped"?"Undo":"Skip"}</button>
+        <button class="b p" data-act="approve" aria-pressed="${i.state==="approved"}" ${canWrite?"":"disabled"}>${i.state==="approved"?"Approved":(!(i.reply||"").trim()&&picked?"Approve react":"Approve")}</button></div>`}
+    </div></div>`;
 }
 function editing(){const a=document.activeElement;return a&&a.matches&&a.matches("#list textarea")}
-function render(){
-  tally();filters();
-  const posted=items.filter(i=>i.state==="posted").sort((a,b)=>String(b.postedAt).localeCompare(String(a.postedAt)));
-  $("#logbody").innerHTML=posted.length?posted.map(i=>`<tr><td class="t">${fmt(i.postedAt)}</td><td>${PLAT[i.platform]||esc(i.platform)}</td><td>${esc(i.account||"")}</td><td>${esc(i.author)}</td><td>${esc(i.reply)}</td><td>${i.verified?"✓ read back":"–"}</td></tr>`).join(""):`<tr><td colspan="6" class="note">Nothing posted yet.</td></tr>`;
-  $("#rulelist").innerHTML=rules.length?rules.sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>`<label class="rule"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on?"checked":""} ${canWrite?"":"disabled"}><span><h3>${esc(r.title)}</h3><p>${esc(r.detail||"")}</p></span></label>`).join(""):`<div class="empty">${loadState==="loading"?"Loading rules…":"Rules will appear here."}</div>`;
-  $("#rulelist").querySelectorAll("[data-rule]").forEach(c=>c.onchange=()=>db&&db.collection("rules").doc(c.dataset.rule).update({on:c.checked,changedAt:new Date().toISOString()}).catch(()=>{$("#sync").textContent="Couldn't save that rule. Try again."}));
-  if(editing()){pendingList=true;return}
-  renderList();
+function empty(){
+  if(loadState==="loading")return `<div class="empty">Loading your comments…</div>`;
+  if(loadState==="error")return `<div class="empty">Couldn't load your comments.<br><button class="b" id="retry">Reload</button></div>`;
+  if(loadState==="nodb")return `<div class="empty">Open this page on claude.ai while signed in to load your comments.</div>`;
+  if(!items.length)return `<div class="empty">No comments yet. They show up after Claude's next sweep.</div>`;
+  return `<div class="empty">Nothing here${plat==="all"?"":" on "+PLAT[plat]}. Try another status above.</div>`;
 }
-document.addEventListener("focusout",e=>{if(e.target.matches&&e.target.matches("#list textarea")&&pendingList)setTimeout(()=>{if(!editing()){pendingList=false;renderList()}},150)});
-function renderList(){
-  let v=items.filter(i=>filterPlat==="all"||i.platform===filterPlat);
-  v=v.filter(i=>filterState==="every"||(filterState==="open"?["new","approved"].includes(i.state):i.state===filterState));
-  const rank=i=>(i.needsAnswer?2:0)+(i.kind==="dm"&&i.authorFollows===false?1:0);
-  const t=i=>String(i.commentedAt||i.foundAt||"");
-  v.sort((a,b)=>rank(b)-rank(a)||t(b).localeCompare(t(a)));
-  $("#list").innerHTML=v.length?v.map(card).join(""):emptyMsg();
+function render(){
+  rail();states();
+  const posted=items.filter(i=>i.state==="posted").sort((a,b)=>String(b.postedAt).localeCompare(String(a.postedAt)));
+  $("#logbody").innerHTML=posted.length?posted.map(i=>{const r=reactOf(i);return `<tr><td class="t">${fmt(i.postedAt)}</td><td>${PLAT[i.platform]||esc(i.platform)}</td><td>${esc(i.author)}</td><td>${esc(i.reply||"")}</td><td>${r?r[1]+" "+r[2]:""}</td><td>${i.verified?"Read back":""}</td></tr>`}).join(""):`<tr><td colspan="6" class="t">Nothing posted yet.</td></tr>`;
+  $("#rulelist").innerHTML=rules.length?[...rules].sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>`<label class="rule"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on?"checked":""} ${canWrite?"":"disabled"}><span><h3>${esc(r.title)}</h3><p>${esc(r.detail||"")}</p></span></label>`).join(""):`<div class="empty">Rules show up here.</div>`;
+  $("#rulelist").querySelectorAll("[data-rule]").forEach(c=>c.onchange=()=>db&&db.collection("rules").doc(c.dataset.rule).update({on:c.checked,changedAt:new Date().toISOString()}).catch(()=>{$("#sync").textContent="Couldn't save that rule"}));
+  if(editing()){pending=true;return}
+  list();
+}
+document.addEventListener("focusout",e=>{if(e.target.matches&&e.target.matches("#list textarea")&&pending)setTimeout(()=>{if(!editing()){pending=false;list()}},150)});
+function list(){
+  let v=items.filter(i=>(plat==="all"||i.platform===plat)&&inState(i,st));
+  v.sort((a,b)=>(b.needsAnswer?1:0)-(a.needsAnswer?1:0)||String(b.foundAt).localeCompare(String(a.foundAt)));
+  /* Group by post, in the order the first comment of each post appears. */
+  const groups=new Map();
+  for(const i of v){const k=i.platform+"|"+(i.post||"");if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)}
+  $("#list").innerHTML=v.length?[...groups.values()].map(g=>{const f=g[0],url=g.find(x=>/^https?:\/\//.test(x.postUrl||""))?.postUrl;
+    return `<section class="post"><div class="post-h"><span class="pf">${PLAT[f.platform]||esc(f.platform)}</span><span class="post-t">${esc((f.post||"").replace(/^(Reel|Video|Post|Graduation|DM): /,""))||"Untitled"}</span><span class="post-n">${g.length}</span>${url?`<a href="${esc(url)}" target="_blank" rel="noopener">Open post ↗</a>`:""}</div>
+      <div class="rows">${g.map(row).join("")}</div></section>`}).join(""):empty();
   $("#retry")?.addEventListener("click",()=>location.reload());
-  $("#list").querySelectorAll(".card").forEach(el=>{
-    const id=el.dataset.id, t=el.querySelector("[data-edit]");
-    let timer; t.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>save(id,{reply:t.value},true),700)});
+  $("#list").querySelectorAll(".row").forEach(el=>{
+    const id=el.dataset.id,t=el.querySelector("[data-edit]");
+    let timer;t.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>save(id,{reply:t.value},true),700)});
+    el.querySelectorAll("[data-rx]").forEach(b=>b.onclick=()=>{const cur=items.find(x=>x.id===id);if(!cur)return;
+      save(id,{react:cur.react===b.dataset.rx?null:b.dataset.rx})});
     el.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
-      const cur=items.find(x=>x.id===id); if(!cur)return;
-      if(b.dataset.act==="approve"&&cur.state!=="approved"&&!t.value.trim()){el.querySelector(".err").hidden=false;t.focus();return}
+      const cur=items.find(x=>x.id===id);if(!cur)return;
+      if(b.dataset.act==="approve"&&cur.state!=="approved"&&!t.value.trim()&&!cur.react){el.querySelector(".err").hidden=false;t.focus();return}
       el.querySelector(".err").hidden=true;
-      if(b.dataset.act==="approve") save(id,{reply:t.value,state:cur.state==="approved"?"new":"approved",decidedAt:new Date().toISOString()});
+      if(b.dataset.act==="approve")save(id,{reply:t.value,state:cur.state==="approved"?"new":"approved",decidedAt:new Date().toISOString()});
       else save(id,{state:cur.state==="skipped"?"new":"skipped",decidedAt:new Date().toISOString()});
     });
   });
 }
-function setSync(){
-  if(loadState==="ready")$("#sync").textContent=`Live · ${items.length} comments · updated ${new Date(loadedAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}`;
-}
+function setSync(){if(loadState==="ready"){$("#sync").classList.remove("off");$("#sync").textContent=`Live · ${new Date(loadedAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`}}
 async function save(id,patch,quiet){
-  const i=items.find(x=>x.id===id); if(i)Object.assign(i,patch);
-  if(!quiet)render(); else tally();
-  if(!db){$("#sync").textContent="Not connected, so this change wasn't saved. Reload the page.";return}
-  try{await db.collection("items").doc(id).update({...patch,updatedAt:new Date().toISOString()}); $("#sync").textContent="Saved"; setTimeout(setSync,1200)}
-  catch(e){if(e&&e.code==="invalid_argument"){canWrite=false;render()}$("#sync").textContent="Couldn't save. Check your connection and try again."}
+  const i=items.find(x=>x.id===id);if(i)Object.assign(i,patch);
+  if(!quiet)render();else rail();
+  if(!db){$("#sync").classList.add("off");$("#sync").textContent="Not saved: not connected";return}
+  try{await db.collection("items").doc(id).update({...patch,updatedAt:new Date().toISOString()});$("#sync").textContent="Saved";setTimeout(setSync,1200)}
+  catch(e){if(e&&e.code==="invalid_argument"){canWrite=false;render()}$("#sync").classList.add("off");$("#sync").textContent="Couldn't save. Try again."}
 }
-
 /* ---------- Storage ----------
    Inside Claude (claude.ai artifact with the `db` capability) the page uses Claude's shared store,
    so your agent can read and write the same rows with its ArtifactData tool.
@@ -292,28 +361,24 @@ document.getElementById("imp")?.addEventListener("change",e=>{const f=e.target.f
 document.getElementById("sample")?.addEventListener("click",async()=>{try{const r=await fetch("../examples/sample-data.json");db.importJSON(await r.text());$("#localmsg").textContent="Sample data loaded."}catch(e){$("#localmsg").textContent="Couldn't load the sample file. Use Import JSON instead."}});
 (async()=>{
   if(window.claude?.use){try{db=await withTimeout(window.claude.use("db"),15000)}catch(e){db=null}}
-  if(!db){db=localDB();document.getElementById("localbar").hidden=false;
+  if(!db){db=localDB();$("#localbar").hidden=false;
     /* First visit to the demo: show the sample so the page isn't empty. */
     let seen=false;try{seen=!!localStorage.getItem("reply-desk-seen")}catch(e){}
     if(!seen){try{localStorage.setItem("reply-desk-seen","1")}catch(e){}
       try{const r=await fetch("../examples/sample-data.json");if(r.ok){db.importJSON(await r.text());$("#localmsg").textContent="Showing sample comments. They're made up."}}catch(e){}}}
-  /* Subscribe first: nothing else may delay the comments. */
-  const guard=setTimeout(()=>{if(loadState==="loading"){loadState="error";$("#sync").textContent="Still waiting for your comments";render()}},20000);
-  db.collection("items").onSnapshot(s=>{
-    items=s.docs.map(d=>({id:d.id,...d.data()})); clearTimeout(guard);
-    loadState="ready"; loadedAt=Date.now(); setSync(); render();
-  },()=>{loadState=items.length?"ready":"error";$("#sync").textContent="Lost connection. Reload to retry.";render()});
+  const guard=setTimeout(()=>{if(loadState==="loading"){loadState="error";$("#sync").classList.add("off");$("#sync").textContent="Still waiting";render()}},20000);
+  db.collection("items").onSnapshot(s=>{items=s.docs.map(d=>({id:d.id,...d.data()}));clearTimeout(guard);loadState="ready";loadedAt=Date.now();setSync();render()},
+    ()=>{loadState=items.length?"ready":"error";$("#sync").classList.add("off");$("#sync").textContent="Lost connection";render()});
   db.collection("rules").onSnapshot(s=>{rules=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{});
-  /* Then, in the background: write access and the saved theme. */
-  (async()=>{
-    try{
-      const user=await withTimeout(window.claude?.use?.("user"),10000); if(!user)return;
-      const w=await withTimeout(user.can?.("data.write"),8000); if(w===false){canWrite=false;render()}
-      const uid=await withTimeout(user.id?.(),8000); if(!uid)return;
-      prefsRef=db.collection("data/users/"+uid).doc("prefs");
-      const p=await withTimeout(prefsRef.get(),8000); const t=p?.exists&&p.data()?.theme;
-      if(t){applyTheme(t);try{localStorage.setItem("rd-theme",t)}catch(e){}}
-    }catch(e){}
-  })();
+  (async()=>{try{
+    const user=await withTimeout(window.claude?.use?.("user"),10000);if(!user)return;
+    const w=await withTimeout(user.can?.("data.write"),8000);if(w===false){canWrite=false;render()}
+    const uid=await withTimeout(user.id?.(),8000);if(!uid)return;
+    prefsRef=db.collection("data/users/"+uid).doc("prefs");
+    const p=await withTimeout(prefsRef.get(),8000);const t=p?.exists&&p.data()?.theme;
+    if(t){applyTheme(t);try{localStorage.setItem("rd-theme",t)}catch(e){}}
+  }catch(e){}})();
 })();
 </script>
+
+</html>

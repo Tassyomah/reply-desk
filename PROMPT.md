@@ -81,23 +81,39 @@ I sign in myself. You NEVER type my passwords, create accounts, solve CAPTCHAs o
 Build one HTML page. A working reference is `app/reply-desk.html` in this repo. Rebuild or improve it, but keep every behavior here.
 
 ## 3.1 Layout
-1. **Header.** The name "Reply Desk" and a one-line explanation: "Claude sweeps your comments and drafts a reply for each. Edit the draft, then approve or skip it. Only approved replies get posted, and every post is logged." Add a Light / Dark / Auto switch, defaulting to Light. Add a status line such as "Live · 53 comments · updated 9:41 AM".
-2. **Tally tiles.** Needs you, Approved (to post) and Posted, then one tile per platform that has open items.
-3. **Tabs.** Inbox, Log and Automation rules.
-4. **Inbox filters.** Chips for platform and for state, each with a count, such as "TikTok · 15" or "Approved · 8". The states are Open (new plus approved), Approved, Posted, Skipped, Failed and All.
-5. **One card per item.** Each card shows:
-   - The platform badge, and an account badge showing `account` when `isMain` is false.
-   - A kind badge: Comment, Reply, Mention or DM.
-   - The author, how long ago, and a "Needs a real answer" flag for questions.
-   - The post it's on, linked to `postUrl` when there is one, the comment text, the reply box and an optional note.
-   - The translation under the comment text when `translation` is set.
-   - An "Already answered" badge when `threadHasOwnerReply` is true.
-   - The reason in red when `state` is `failed`.
-   - On the right, the state pill plus Approve and Skip buttons. Approve toggles to "Approved ✓", and Skip toggles to "Undo skip".
-   - Posted cards are read-only and show when they were posted.
-6. **Sort order.** Items that need a real answer come first. DMs from people who don't follow me come next, then everything else, newest first by `commentedAt`, falling back to `foundAt`.
-7. **Log tab.** A table of every posted reply: when, platform, account, to whom, the reply, and "✓ read back" once verified.
-8. **Automation rules tab.** Checkboxes, all off by default. When you first build the page, create these five documents in `rules` (ids `r1` to `r5`, `on: false`, `order` 1 to 5):
+1. **Left rail** (it stacks on top at phone width):
+   - The name "Reply Desk".
+   - The views: Inbox, Log and Automation rules, with counts.
+   - Platforms as a small tree under "All platforms", each with a count.
+   - A Light / Dark / Auto switch, defaulting to Light.
+2. **Main column header.**
+   - The view title ("Inbox", or the platform's name when one is picked).
+   - A summary line: "39 need you · 6 approved, waiting to post".
+   - One help line: "Edit the reply, pick a reaction if you like, then Approve or Skip. Nothing goes out until you say post."
+   - A status dot with "Live · 9:41 AM".
+3. **State filter.** A row of quiet toggles, each with a count: Open (new plus approved), Approved, Posted, Skipped and All.
+4. **Grouped by post.** One header per post: the platform badge, the post title, how many items it has, and "Open post ↗" linked to `postUrl`. That post's items hang under it as cards, joined by a thin tree line.
+5. **One card per item.** Each comment is its own bordered card, so it never runs into the next one. Each card shows:
+   - The author, a kind badge (Reply, Mention or DM), an account badge when `isMain` is false, how long ago, and a "Needs your answer" flag for questions.
+   - The comment text, with the translation under it when `translation` is set.
+   - **"Your reply"**: a labelled, bordered text box that clearly looks editable. It grows with its text, and links in it are listed underneath.
+   - **"React (optional)"**: one labelled button per reaction the platform supports on someone else's comment (table below). It's a toggle, and the picked one shows a tick. DMs have no react row.
+   - Notes, "Already answered" when `threadHasOwnerReply` is true, and the reason in red when `state` is `failed`.
+   - **A footer under the reply**: the state pill on the left ("Needs you", "Approved", "Posted", "Skipped", "Failed"), and Skip and Approve on the right. Approve toggles to "Approved". Skip toggles to "Undo".
+   - Approved cards get an accent border. Posted cards are read-only and show when they were posted.
+6. **Reactions by platform** (on other people's comments):
+
+   | Platform | Reactions |
+   |---|---|
+   | Instagram, TikTok, X | Like ❤️ |
+   | YouTube | Like 👍, Creator heart ❤️ |
+   | Facebook | Like 👍, Love ❤️, Care 🥰, Haha 😆, Wow 😮, Sad 😢, Angry 😡 |
+   | LinkedIn | Like 👍, Celebrate 👏, Support 🫶, Love ❤️, Insightful 💡, Funny 😄 |
+
+7. **Sort order.** Items that need a real answer come first. DMs from people who don't follow me come next, then everything else, newest first by `commentedAt`, falling back to `foundAt`. Posts are ordered by their first item.
+8. **Look.** One font, neutral colours and one accent colour, which marks state. Hover and selection changes take 80–160 ms, and nothing animates layout.
+9. **Log tab.** A table of every posted item: when, platform, account, to whom, the reply, the reaction, and "Read back" once verified.
+10. **Automation rules tab.** Checkboxes, all off by default. When you first build the page, create these five documents in `rules` (ids `r1` to `r5`, `on: false`, `order` 1 to 5):
 
    | id | Title | When it runs | What it does |
    |---|---|---|---|
@@ -117,7 +133,7 @@ Build one HTML page. A working reference is `app/reply-desk.html` in this repo. 
   - When the store is empty, show "No comments yet".
   - When a filter is empty, name the filter and say how many items sit in other states.
 - **Typing is never interrupted.** A reply box autosaves 0.7 seconds after typing stops. A save or live update never rebuilds the card that has focus. Re-render when focus leaves.
-- **Approve needs text.** If the reply is empty, Approve shows "Write a reply before approving." and does nothing.
+- **Approve needs a reply or a reaction.** If the reply is empty and no reaction is picked, Approve shows "Write a reply or pick a reaction first." and does nothing. A reaction with no reply is a valid "react only" item.
 - **Question placeholder.** Questions start with an empty reply box and the placeholder "Type your answer here. It gets posted word for word."
 - **Theme persists.** Save it in the page's own storage and in the viewer's private preferences. Apply it as a class on `<body>`, never as `data-theme` on `<html>`, because some viewers overwrite that.
 - **Accessibility.** The page works at phone width and in light and dark, and keyboard focus is visible.
@@ -136,7 +152,9 @@ Collection `items`:
 | authorFollows | bool | no | When the platform shows it |
 | text | string | yes | Exact text. NEVER paraphrase or translate it here |
 | translation | string | no | An English translation, filled when the text isn't in a CONFIG language. Its presence is the flag |
-| reply | string | yes | Your draft, then my edited and approved wording |
+| reply | string | yes | Your draft, then my edited and approved wording. It may be empty for a react-only item |
+| react | string \| null | no | The reaction key I picked: `like`, `heart`, `love`, `care`, `haha`, `wow`, `sad`, `angry`, `celebrate`, `support`, `insightful` or `funny`, limited to what the platform offers |
+| reactedAt | ISO 8601 | no | Set after the reaction is placed and read back |
 | post | string | yes | The post's title or first line |
 | postUrl | string | no | |
 | platformId | string | no | The platform's comment or message id, when you can read it |
@@ -206,11 +224,15 @@ I edit, approve or skip on the page. Do nothing else with those items until I sa
 1. **Re-read the store now.** Take only `state == approved` items, and only for the platforms I named. I may have still been approving when I spoke.
 2. **Log first.** Write every approved reply into the instruction log (section 7) before posting anything.
 3. **Check each thread.** Re-check it on the platform first. If I've replied since, don't post. Set `state: skipped`, `threadHasOwnerReply: true` and the note "You replied on the platform", and tell me.
-4. **Post exactly.** Post each reply as a threaded reply under its comment or inside its DM thread, as the right identity (section 6). Type it exactly as approved, including emoji and line breaks.
+4. **React first.** If the item has `react`, place that reaction on the comment before replying.
+   - Check first whether I already reacted, because clicking an active Like removes it.
+   - Read the reaction back: a filled heart or my reaction label on the comment.
+   - Set `reactedAt`. A react-only item then goes straight to verify.
+5. **Post exactly.** Post each reply as a threaded reply under its comment or inside its DM thread, as the right identity (section 6). Type it exactly as approved, including emoji and line breaks.
    - Use real keystrokes, because some platforms silently drop text inserted by script.
    - If the text needs characters the keyboard can't type, use the platform's emoji picker.
-5. **Pace yourself.** Wait a random time within `pace_seconds_between_replies` between replies, and respect `max_replies_per_platform_per_hour`.
-6. **Confirm each one.** Look for a toast, the comment count going up, or the reply showing. If it fails, retry once. If it fails again, set `state: failed` and `failReason`, and move on.
+6. **Pace yourself.** Wait a random time within `pace_seconds_between_replies` between replies, and respect `max_replies_per_platform_per_hour`.
+7. **Confirm each one.** Look for a toast, the comment count going up, or the reply showing. If it fails, retry once. If it fails again, set `state: failed` and `failReason`, and move on.
 
 ## 5.4 Verify and log
 1. **Read each reply back** from the platform, using the method for that platform in section 6.
@@ -326,7 +348,9 @@ Right before posting each item, read its lines against what's on screen. Change 
 - [ ] Loads items while the theme and user calls hang or fail
 - [ ] An empty filter explains why it's empty
 - [ ] Typing in a reply box survives a live update
-- [ ] Approve with an empty reply shows the error
+- [ ] Approve with an empty reply and no reaction shows the error
+- [ ] Each card shows only the reactions its platform supports, and DMs show none
+- [ ] Each card is visibly separate, with a boxed reply field and Skip and Approve under it
 - [ ] Theme choice survives a reload
 - [ ] Works at 375 px wide
 
