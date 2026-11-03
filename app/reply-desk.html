@@ -86,6 +86,18 @@ h1{font-size:22px;font-weight:650;letter-spacing:-.02em;margin:0;text-wrap:balan
 .said{margin:3px 0 0;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
 .reply{margin-top:12px;display:grid;gap:5px}
 .reply label{font-size:12.5px;font-weight:550;color:var(--ink-2)}
+.rlab{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chk{border:0;background:transparent;color:var(--ink-3);font-size:12.5px;cursor:pointer;padding:2px 6px;border-radius:6px;transition:background var(--fast),color var(--fast)}
+.chk:hover{background:var(--hover);color:var(--ink)}
+.fix{margin-top:8px;border:1px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 12px;display:grid;gap:8px}
+.fix p{margin:0;white-space:pre-wrap;font-size:14.5px;line-height:1.5;overflow-wrap:anywhere}
+.fix mark{background:transparent;color:var(--accent);font-weight:650;text-decoration:underline;text-underline-offset:3px}
+.fix .fh{font-size:12.5px;font-weight:600;color:var(--accent)}
+.fix .fa{display:flex;gap:6px;flex-wrap:wrap}
+.fix .b{padding:5px 12px;font-size:13px}
+.fixok{margin:6px 0 0;font-size:12.5px;color:var(--ok)}
+.fixok.wait{color:var(--ink-3)}
+.fixok.bad{color:var(--warn)}
 textarea{width:100%;border:1px solid var(--line-2);background:var(--bg);border-radius:8px;resize:vertical;font:15px/1.5 var(--font);color:var(--ink);padding:9px 11px;min-height:64px;field-sizing:content;white-space:pre-wrap;outline:none;transition:border-color var(--fast),box-shadow var(--fast)}
 textarea:hover{border-color:var(--ink-3)}
 textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
@@ -263,7 +275,8 @@ function row(i){
     <div style="min-width:0">
       <div class="who"><b>${esc(i.author)}</b>${i.kind&&KIND[i.kind]?`<span class="tag">${KIND[i.kind]}</span>`:""}${i.account&&i.account!=="personal"?`<span class="tag">${esc(i.account)}</span>`:""}<span>${esc(i.when||"")}</span>${i.needsAnswer?`<span class="tag ask">Needs your answer</span>`:""}</div>
       <p class="said">${esc(i.text)}</p>
-      <div class="reply"><label for="r-${esc(i.id)}">${done?"Your posted reply":"Your reply"}</label><textarea id="r-${esc(i.id)}" ${ro?"readonly":""} data-edit placeholder="${i.needsAnswer?"Your answer, posted word for word":canReact?"Write a reply, or just react below":"Write a reply"}">${esc(i.reply||"")}</textarea></div>
+      <div class="reply"><div class="rlab"><label for="r-${esc(i.id)}">${done?"Your posted reply":"Your reply"}</label>${!ro&&sampleFn?`<button type="button" class="chk" data-chk title="Check spelling and grammar">✓ Check spelling</button>`:""}</div><textarea id="r-${esc(i.id)}" spellcheck="true" ${ro?"readonly":""} data-edit placeholder="${i.needsAnswer?"Your answer, posted word for word":canReact?"Write a reply, or just react below":"Write a reply"}">${esc(i.reply||"")}</textarea></div>
+      ${ro?"":`<div class="fixslot">${fixHTML(i.id,i.reply||"")}</div>`}
       ${links.length?`<p class="links">${links.map(x=>`<a href="${esc(x)}" target="_blank" rel="noopener">${esc(x.replace(/^https?:\/\//,""))}</a>`).join("")}</p>`:""}
       ${canReact?`<div class="reacts" role="group" aria-label="React on ${PLAT[i.platform]}"><span class="lbl">${done?"Reacted":"React (optional)"}</span>${(done?rs.filter(r=>r[0]===i.react):rs).map(([k,e,l])=>`<button class="rx" data-rx="${k}" aria-pressed="${i.react===k}" title="${l}" aria-label="${l}" ${ro?"disabled":""}><span class="e">${e}</span><span class="t">${l}</span></button>`).join("")||`<span class="lbl">none</span>`}</div>`:""}
       <p class="note err" hidden>Write a reply or pick a reaction first.</p>
@@ -306,7 +319,11 @@ function list(){
   $("#retry")?.addEventListener("click",()=>location.reload());
   $("#list").querySelectorAll(".row").forEach(el=>{
     const id=el.dataset.id,t=el.querySelector("[data-edit]");
-    let timer;t.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>save(id,{reply:t.value},true),700)});
+    let timer;t.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(()=>save(id,{reply:t.value},true),700);paintFix(el,id)});
+    /* Proofread when the viewer leaves a reply they changed, or presses Check. */
+    t.addEventListener("focus",()=>{t.dataset.orig=t.value});
+    t.addEventListener("blur",()=>{if(t.value!==t.dataset.orig)check(id,t.value)});
+    el.querySelector("[data-chk]")?.addEventListener("click",()=>check(id,t.value,true));
     el.querySelectorAll("[data-rx]").forEach(b=>b.onclick=()=>{const cur=items.find(x=>x.id===id);if(!cur)return;
       save(id,{react:cur.react===b.dataset.rx?null:b.dataset.rx})});
     el.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
@@ -325,6 +342,55 @@ async function save(id,patch,quiet){
   if(!db){$("#sync").classList.add("off");$("#sync").textContent="Not saved: not connected";return}
   try{await db.collection("items").doc(id).update({...patch,updatedAt:new Date().toISOString()});$("#sync").textContent="Saved";setTimeout(setSync,1200)}
   catch(e){if(e&&e.code==="invalid_argument"){canWrite=false;render()}$("#sync").classList.add("off");$("#sync").textContent="Couldn't save. Try again."}
+}
+/* ---------- Spelling and grammar check (asks Claude on the viewer's account) ---------- */
+let sampleFn=null; const fixes={};
+const PROOF=`You proofread short social media replies written by Tassy Omah, a Nigerian product designer living in Canada.
+Fix ONLY clear spelling mistakes, typos, missing apostrophes and obvious grammar errors.
+Keep her voice exactly. Do not rephrase, reorder, shorten or add words, except to fix a misspelled or clearly missing word.
+Keep every emoji, @handle, name, link, line break, capitalisation choice, slang and deliberate spelling (Yesss, frr, gonna, sooo, Nigerian Pidgin like "abeg", "wahala", "omo").
+If nothing needs fixing, return the text unchanged.
+Reply with only JSON: {"corrected": "<the full reply>"}
+
+Reply:
+`;
+function wordDiff(a,b){
+  const A=a.split(/(\s+)/),B=b.split(/(\s+)/),n=A.length,m=B.length;
+  if(n*m>90000)return esc(b);
+  const L=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  let i=0,j=0,out="";
+  while(j<m){if(i<n&&A[i]===B[j]){out+=esc(B[j]);i++;j++}else if(i<n&&L[i+1][j]>=L[i][j+1])i++;else{out+=/^\s+$/.test(B[j])?esc(B[j]):`<mark>${esc(B[j])}</mark>`;j++}}
+  return out;
+}
+function fixHTML(id,text){
+  const f=fixes[id]; if(!f||f.for!==text)return "";
+  if(f.state==="checking")return `<p class="fixok wait">Checking spelling and grammar…</p>`;
+  if(f.state==="ok")return `<p class="fixok">✓ Spelling and grammar look good</p>`;
+  if(f.state==="err")return `<p class="fixok bad">${esc(f.msg)}</p>`;
+  if(f.state==="fix")return `<div class="fix" role="status"><span class="fh">Suggested fix</span><p>${wordDiff(text,f.corrected)}</p><div class="fa"><button type="button" class="b p" data-fix="use">Use this</button><button type="button" class="b" data-fix="keep">Keep mine</button></div></div>`;
+  return "";
+}
+function paintFix(el,id){
+  const slot=el.querySelector(".fixslot"),t=el.querySelector("[data-edit]"); if(!slot||!t)return;
+  slot.innerHTML=fixHTML(id,t.value);
+  slot.querySelector('[data-fix="use"]')?.addEventListener("click",()=>{const c=fixes[id].corrected;t.value=c;t.dataset.orig=c;fixes[id]={for:c,state:"ok"};save(id,{reply:c},true);paintFix(el,id)});
+  slot.querySelector('[data-fix="keep"]')?.addEventListener("click",()=>{fixes[id]={for:t.value,state:"kept"};paintFix(el,id)});
+}
+const rowEl=id=>[...document.querySelectorAll("#list .row")].find(r=>r.dataset.id===id);
+async function check(id,text,force){
+  if(!sampleFn||!text.trim())return;
+  const f=fixes[id]; if(f&&f.for===text&&f.state!=="err"&&!(force&&f.state==="kept"))return;
+  fixes[id]={for:text,state:"checking"}; const el=rowEl(id); el&&paintFix(el,id);
+  try{
+    const r=await sampleFn.json(PROOF+text,{modelTier:"quick"});
+    const c=typeof r?.corrected==="string"&&r.corrected.trim()?r.corrected:text;
+    fixes[id]=c.trim()===text.trim()?{for:text,state:"ok"}:{for:text,state:"fix",corrected:c};
+  }catch(e){
+    if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e?.code)){sampleFn=null;delete fixes[id];if(!editing())list();return}
+    fixes[id]=e?.code==="cancelled"?null:{for:text,state:"err",msg:e?.code==="rate_limited"?"Too many checks right now. Try again in a bit.":"Couldn't check this one. Press Check spelling to try again."};
+  }
+  const el2=rowEl(id); el2&&paintFix(el2,id);
 }
 /* ---------- Storage ----------
    Inside Claude (claude.ai artifact with the `db` capability) the page uses Claude's shared store,
@@ -369,6 +435,7 @@ document.getElementById("sample")?.addEventListener("click",async()=>{try{const 
   const guard=setTimeout(()=>{if(loadState==="loading"){loadState="error";$("#sync").classList.add("off");$("#sync").textContent="Still waiting";render()}},20000);
   db.collection("items").onSnapshot(s=>{items=s.docs.map(d=>({id:d.id,...d.data()}));clearTimeout(guard);loadState="ready";loadedAt=Date.now();setSync();render()},
     ()=>{loadState=items.length?"ready":"error";$("#sync").classList.add("off");$("#sync").textContent="Lost connection";render()});
+  (async()=>{try{const s=await withTimeout(window.claude?.use?.("sample"),12000);if(s){sampleFn=s;if(!editing())list();else pending=true}}catch(e){}})();
   db.collection("rules").onSnapshot(s=>{rules=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{});
   (async()=>{try{
     const user=await withTimeout(window.claude?.use?.("user"),10000);if(!user)return;
